@@ -429,7 +429,7 @@ class ConnectFourAI:
             if row is None:
                 continue
 
-                board[row][col] = AI
+            board[row][col] = AI
             _, score = self.minimax(
                 board,
                 profile.depth - 1,
