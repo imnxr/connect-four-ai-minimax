@@ -156,7 +156,6 @@ class ConnectFourGame:
         self.current_player = HUMAN
         self.game_over = False
         self.winner = EMPTY
-        self.move_stack: list[tuple[int, int, int]] = []
 
     def is_valid_move(self, col: int, board: list[list[int]] | None = None) -> bool:
         board = self.board if board is None else board
@@ -183,16 +182,7 @@ class ConnectFourGame:
         if row is None:
             return None
         board[row][col] = piece
-        if board is self.board:
-            self.move_stack.append((row, col, piece))
         return row
-
-    def undo_last_move(self) -> tuple[int, int, int] | None:
-        if not self.move_stack:
-            return None
-        row, col, piece = self.move_stack.pop()
-        self.board[row][col] = EMPTY
-        return row, col, piece
 
     def board_full(self, board: list[list[int]] | None = None) -> bool:
         board = self.board if board is None else board
@@ -439,7 +429,7 @@ class ConnectFourAI:
             if row is None:
                 continue
 
-            board[row][col] = AI
+                board[row][col] = AI
             _, score = self.minimax(
                 board,
                 profile.depth - 1,
