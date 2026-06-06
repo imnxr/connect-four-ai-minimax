@@ -21,6 +21,24 @@ This project was created as an Artificial Intelligence course project to demonst
 - Win, loss, and draw detection
 - Public-shareable desktop project structure
 
+## Screenshots
+
+### Main Gameplay
+
+![Main Gameplay](screenshots/main-gameplay.png)
+
+### Controls and Scoreboard
+
+![Controls and Scoreboard](screenshots/controls-and-scoreboard.png)
+
+### User Win State
+
+![User Win State](screenshots/user-win-state.png)
+
+### AI Win State
+
+![AI Win State](screenshots/ai-win-state.png)
+
 ## Technologies Used
 
 - Python 3
@@ -39,6 +57,11 @@ Connect Four/
 +-- LICENSE
 +-- README.md
 +-- .gitignore
++-- screenshots/
+   +-- main-gameplay.png
+   +-- controls-and-scoreboard.png
+   +-- user-win-state.png
+   +-- ai-win-state.png
 ```
 
 ## Installation
