@@ -15,7 +15,9 @@ This project was created as an Artificial Intelligence course project to demonst
 - Alpha-Beta pruning for faster search
 - Heuristic board evaluation for strategic play
 - Three difficulty levels: Easy, Medium, and Hard
-- Clean Pygame-based graphical interface
+- Clean minimalist Pygame-based interface
+- Sound toggle with move, win, loss, and draw effects
+- Session scoreboard for wins, losses, and draws
 - Win, loss, and draw detection
 - Public-shareable desktop project structure
 
@@ -59,15 +61,17 @@ python connect_four.py
 3. Try to connect four pieces in a row horizontally, vertically, or diagonally.
 4. The AI will automatically play its move after your turn.
 5. Use the difficulty buttons on the right panel to switch between Easy, Medium, and Hard.
-6. Press `New Game` to restart at any time.
+6. Use `New Match` to start a fresh round at any time.
+7. Track your performance with the scoreboard on the right side.
 
 ## Controls
 
 - Mouse click: Drop a piece in a column
-- `N`: Start a new game
+- `N`: Start a new match
 - `1`: Easy difficulty
 - `2`: Medium difficulty
 - `3`: Hard difficulty
+- `Sound: On/Off`: Enable or disable game sounds
 
 ## AI Overview
 
