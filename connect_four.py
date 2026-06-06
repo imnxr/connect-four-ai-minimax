@@ -356,11 +356,11 @@ class ConnectFourAI:
                 if row is None:
                     continue
 
-                    board[row][col] = AI
-                    _, score = self.minimax(
-                        board, depth - 1, alpha, beta, False, weights, stats
-                    )
-                    board[row][col] = EMPTY
+                board[row][col] = AI
+                _, score = self.minimax(
+                    board, depth - 1, alpha, beta, False, weights, stats
+                )
+                board[row][col] = EMPTY
 
                 if score > best_score:
                     best_score = score
