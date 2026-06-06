@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from array import array
 import math
 import random
 import time
@@ -7,6 +8,7 @@ from dataclasses import dataclass, field
 
 try:
     import pygame
+    import pygame.gfxdraw
 except ImportError as exc:  # pragma: no cover - helpful runtime message only
     pygame = None
     PYGAME_IMPORT_ERROR = exc
@@ -21,33 +23,33 @@ HUMAN = 1
 AI = 2
 
 CELL_SIZE = 92
-TOP_SPACE = 150
+TOP_SPACE = 122
 BOARD_MARGIN = 24
 PANEL_WIDTH = 320
 WINDOW_WIDTH = COLS * CELL_SIZE + PANEL_WIDTH + BOARD_MARGIN * 3
 WINDOW_HEIGHT = TOP_SPACE + ROWS * CELL_SIZE + BOARD_MARGIN
 FPS = 60
 
-APP_BG = (8, 13, 26)
-BOARD_COLOR = (56, 116, 245)
-BOARD_FRAME = (31, 76, 194)
-BOARD_GLOW = (121, 170, 255)
-PANEL_BG = (16, 24, 39)
-PANEL_CARD_BG = (23, 34, 54)
-TEXT_COLOR = (241, 245, 249)
-MUTED_TEXT = (148, 163, 184)
-HUMAN_COLOR = (239, 68, 68)
-AI_COLOR = (245, 196, 24)
+APP_BG = (12, 18, 28)
+BOARD_COLOR = (58, 75, 104)
+BOARD_FRAME = (44, 57, 80)
+BOARD_GLOW = (94, 118, 160)
+PANEL_BG = (18, 27, 40)
+PANEL_CARD_BG = (24, 35, 50)
+TEXT_COLOR = (240, 244, 248)
+MUTED_TEXT = (145, 157, 174)
+HUMAN_COLOR = (230, 78, 78)
+AI_COLOR = (234, 191, 54)
 EMPTY_COLOR = (216, 223, 236)
-SLOT_COLOR = (9, 24, 58)
-SLOT_RING = (93, 141, 255)
-BUTTON_BG = (41, 96, 214)
-BUTTON_HOVER = (59, 130, 246)
-BUTTON_ACTIVE = (14, 165, 233)
-STATUS_WIN = (22, 163, 74)
-STATUS_DRAW = (71, 85, 105)
-OUTLINE_COLOR = (33, 51, 76)
-SHADOW_COLOR = (2, 6, 23)
+SLOT_COLOR = (18, 27, 42)
+SLOT_RING = (74, 92, 124)
+BUTTON_BG = (26, 37, 54)
+BUTTON_HOVER = (35, 50, 73)
+BUTTON_ACTIVE = (78, 130, 214)
+STATUS_WIN = (44, 139, 88)
+STATUS_DRAW = (92, 106, 124)
+OUTLINE_COLOR = (42, 56, 79)
+SHADOW_COLOR = (5, 9, 16)
 
 POSITION_WEIGHTS = [
     [3, 4, 5, 7, 5, 4, 3],
@@ -354,11 +356,11 @@ class ConnectFourAI:
                 if row is None:
                     continue
 
-                board[row][col] = AI
-                _, score = self.minimax(
-                    board, depth - 1, alpha, beta, False, weights, stats
-                )
-                board[row][col] = EMPTY
+                    board[row][col] = AI
+                    _, score = self.minimax(
+                        board, depth - 1, alpha, beta, False, weights, stats
+                    )
+                    board[row][col] = EMPTY
 
                 if score > best_score:
                     best_score = score
@@ -466,6 +468,7 @@ class ConnectFourUI:
                 "'python -m pip install pygame-ce' and run again."
             ) from PYGAME_IMPORT_ERROR
 
+        pygame.mixer.pre_init(22050, -16, 1, 256)
         pygame.init()
         pygame.font.init()
 
@@ -486,48 +489,122 @@ class ConnectFourUI:
         self.ai_ready_at = 0.0
         self.difficulty_name = "Medium"
         self.status_message = ""
+        self.human_wins = 0
+        self.ai_wins = 0
+        self.draw_count = 0
+        self.sound_enabled = False
+        self.audio_available = False
+        self.sounds: dict[str, pygame.mixer.Sound] = {}
 
         self.board_x = BOARD_MARGIN
         self.board_y = TOP_SPACE
         self.panel_x = self.board_x + COLS * CELL_SIZE + BOARD_MARGIN
         self.panel_y = BOARD_MARGIN
 
-        self.title_font = pygame.font.SysFont("Trebuchet MS", 38, bold=True)
-        self.section_font = pygame.font.SysFont("Segoe UI", 22, bold=True)
+        self.title_font = pygame.font.SysFont("Segoe UI", 34, bold=True)
+        self.section_font = pygame.font.SysFont("Segoe UI", 20, bold=True)
         self.text_font = pygame.font.SysFont("Segoe UI", 18)
-        self.small_font = pygame.font.SysFont("Segoe UI", 15)
-        self.button_font = pygame.font.SysFont("Segoe UI", 20, bold=True)
-        self.status_font = pygame.font.SysFont("Trebuchet MS", 28, bold=True)
+        self.small_font = pygame.font.SysFont("Segoe UI", 14)
+        self.button_font = pygame.font.SysFont("Segoe UI", 18, bold=True)
+        self.status_font = pygame.font.SysFont("Segoe UI", 26, bold=True)
 
+        self.setup_audio()
         self.buttons = self.create_buttons()
         self.sync_status()
 
     def create_buttons(self) -> list[UIButton]:
         return [
             UIButton(
-                "New Game",
+                "toggle_sound",
+                "toggle_sound",
+                pygame.Rect(self.panel_x + 24, self.panel_y + 72, 272, 42),
+            ),
+            UIButton(
+                "New Match",
                 "new_game",
-                pygame.Rect(self.panel_x + 24, self.panel_y + 72, 272, 46),
+                pygame.Rect(self.panel_x + 24, self.panel_y + 126, 272, 42),
             ),
             UIButton(
                 "Easy",
                 "difficulty:Easy",
-                pygame.Rect(self.panel_x + 24, self.panel_y + 164, 84, 40),
+                pygame.Rect(self.panel_x + 24, self.panel_y + 202, 84, 40),
             ),
             UIButton(
                 "Medium",
                 "difficulty:Medium",
-                pygame.Rect(self.panel_x + 118, self.panel_y + 164, 84, 40),
+                pygame.Rect(self.panel_x + 118, self.panel_y + 202, 84, 40),
             ),
             UIButton(
                 "Hard",
                 "difficulty:Hard",
-                pygame.Rect(self.panel_x + 212, self.panel_y + 164, 84, 40),
+                pygame.Rect(self.panel_x + 212, self.panel_y + 202, 84, 40),
             ),
         ]
 
     def get_profile(self) -> DifficultyProfile:
         return DIFFICULTY_PROFILES[self.difficulty_name]
+
+    def setup_audio(self) -> None:
+        try:
+            if not pygame.mixer.get_init():
+                pygame.mixer.init(22050, -16, 1, 256)
+            self.sounds = self.build_sounds()
+            self.audio_available = True
+            self.sound_enabled = True
+        except pygame.error:
+            self.sounds = {}
+            self.audio_available = False
+            self.sound_enabled = False
+
+    def build_sounds(self) -> dict[str, pygame.mixer.Sound]:
+        sample_rate = pygame.mixer.get_init()[0]
+
+        def tone_samples(frequency: int, duration: float, volume: float) -> array:
+            count = int(sample_rate * duration)
+            data = array("h")
+            attack = max(1, int(sample_rate * 0.004))
+            release = max(1, int(sample_rate * 0.03))
+            for index in range(count):
+                t = index / sample_rate
+                wave = math.sin(2 * math.pi * frequency * t)
+                fade_in = min(1.0, index / attack)
+                fade_out = min(1.0, (count - index) / release)
+                envelope = min(fade_in, fade_out)
+                data.append(int(32767 * volume * envelope * wave))
+            return data
+
+        def silence_samples(duration: float) -> array:
+            return array("h", [0]) * int(sample_rate * duration)
+
+        def pattern_sound(pattern: list[tuple[int, float, float]]) -> pygame.mixer.Sound:
+            data = array("h")
+            for frequency, duration, volume in pattern:
+                if frequency == 0:
+                    data.extend(silence_samples(duration))
+                else:
+                    data.extend(tone_samples(frequency, duration, volume))
+            return pygame.mixer.Sound(buffer=data.tobytes())
+
+        return {
+            "move": pattern_sound([(540, 0.05, 0.12)]),
+            "win": pattern_sound([(523, 0.08, 0.13), (659, 0.08, 0.14), (784, 0.12, 0.15)]),
+            "lose": pattern_sound([(392, 0.10, 0.12), (311, 0.14, 0.12)]),
+            "draw": pattern_sound([(440, 0.06, 0.11), (0, 0.03, 0.0), (440, 0.09, 0.11)]),
+        }
+
+    def play_sound(self, name: str) -> None:
+        if not self.sound_enabled or not self.audio_available:
+            return
+        sound = self.sounds.get(name)
+        if sound is not None:
+            sound.play()
+
+    def get_button_label(self, button: UIButton) -> str:
+        if button.action == "toggle_sound":
+            if not self.audio_available:
+                return "Sound Unavailable"
+            return "Sound: On" if self.sound_enabled else "Sound: Off"
+        return button.label
 
     def sync_status(self) -> None:
         if self.game.game_over:
@@ -564,25 +641,35 @@ class ConnectFourUI:
         self.ai_ready_at = 0.0
         self.sync_status()
 
+    def finish_game(self, winner: int, sound_name: str) -> None:
+        self.game.game_over = True
+        self.game.winner = winner
+        self.ai_pending = False
+
+        if winner == HUMAN:
+            self.human_wins += 1
+        elif winner == AI:
+            self.ai_wins += 1
+        else:
+            self.draw_count += 1
+
+        self.sync_status()
+        self.play_sound(sound_name)
+
     def play_move(self, piece: int, col: int, _report: AIReport | None = None) -> None:
         row = self.game.drop_piece(col, piece)
         if row is None:
             return
 
         if self.game.check_winner(piece):
-            self.game.game_over = True
-            self.game.winner = piece
-            self.ai_pending = False
-            self.sync_status()
+            self.finish_game(piece, "win" if piece == HUMAN else "lose")
             return
 
         if self.game.board_full():
-            self.game.game_over = True
-            self.game.winner = EMPTY
-            self.ai_pending = False
-            self.sync_status()
+            self.finish_game(EMPTY, "draw")
             return
 
+        self.play_sound("move")
         self.game.current_player = AI if piece == HUMAN else HUMAN
         if self.game.current_player == AI:
             self.ai_pending = True
@@ -600,9 +687,7 @@ class ConnectFourUI:
         self.ai_pending = False
 
         if chosen_col is None:
-            self.game.game_over = True
-            self.game.winner = EMPTY
-            self.sync_status()
+            self.finish_game(EMPTY, "draw")
             return
 
         self.play_move(AI, chosen_col, report)
@@ -610,6 +695,10 @@ class ConnectFourUI:
     def handle_button(self, action: str) -> None:
         if action == "new_game":
             self.new_game()
+            return
+        if action == "toggle_sound":
+            if self.audio_available:
+                self.sound_enabled = not self.sound_enabled
             return
         if action.startswith("difficulty:"):
             self.set_difficulty(action.split(":", 1)[1])
@@ -664,30 +753,16 @@ class ConnectFourUI:
 
     def draw_background(self) -> None:
         self.screen.fill(APP_BG)
-        self.draw_alpha_circle((120, 90), 150, BOARD_GLOW, 28)
-        self.draw_alpha_circle((self.panel_x + 180, 540), 170, BUTTON_HOVER, 18)
-        self.draw_alpha_circle((self.board_x + 300, self.board_y + 180), 240, BOARD_COLOR, 12)
 
     def draw_header(self, mouse_pos: tuple[int, int]) -> None:
-        shadow = self.title_font.render("Connect Four", True, darken(TEXT_COLOR, 0.8))
         title = self.title_font.render("Connect Four", True, TEXT_COLOR)
-        self.screen.blit(shadow, (BOARD_MARGIN + 3, 26))
-        self.screen.blit(title, (BOARD_MARGIN, 22))
-
-        if (
-            not self.game.game_over
-            and not self.ai_pending
-            and self.game.current_player == HUMAN
-            and self.board_x <= mouse_pos[0] < self.board_x + COLS * CELL_SIZE
-        ):
-            col = (mouse_pos[0] - self.board_x) // CELL_SIZE
-            if self.game.is_valid_move(col):
-                center_x = self.board_x + col * CELL_SIZE + CELL_SIZE // 2
-                self.draw_disc(
-                    (center_x, self.board_y - 40),
-                    CELL_SIZE // 2 - 14,
-                    HUMAN_COLOR,
-                )
+        subtitle = self.small_font.render(
+            "Choose a column and try to connect four before the AI.",
+            True,
+            MUTED_TEXT,
+        )
+        self.screen.blit(title, (BOARD_MARGIN, 18))
+        self.screen.blit(subtitle, (BOARD_MARGIN + 2, 56))
 
     def draw_board(self, mouse_pos: tuple[int, int]) -> None:
         board_rect = pygame.Rect(
@@ -696,17 +771,14 @@ class ConnectFourUI:
             COLS * CELL_SIZE,
             ROWS * CELL_SIZE,
         )
-        frame_rect = board_rect.inflate(24, 24)
-        self.draw_shadow(frame_rect, 34, offset=(0, 18), alpha=110, expand=12)
-        self.draw_alpha_rect(frame_rect.inflate(10, 10), BOARD_GLOW, 32, radius=38)
-        pygame.draw.rect(self.screen, BOARD_FRAME, frame_rect, border_radius=34)
-        pygame.draw.rect(self.screen, BOARD_COLOR, board_rect.inflate(8, 8), border_radius=28)
-        pygame.draw.rect(
-            self.screen,
-            brighten(BOARD_GLOW, 0.12),
-            pygame.Rect(frame_rect.x + 18, frame_rect.y + 12, frame_rect.w - 36, 10),
-            border_radius=6,
-        )
+        board_panel = board_rect.inflate(34, 34)
+        pygame.draw.rect(self.screen, PANEL_BG, board_panel, border_radius=20)
+        pygame.draw.rect(self.screen, OUTLINE_COLOR, board_panel, width=1, border_radius=20)
+
+        frame_rect = board_rect.inflate(10, 10)
+        pygame.draw.rect(self.screen, BOARD_FRAME, frame_rect, border_radius=18)
+        pygame.draw.rect(self.screen, BOARD_COLOR, board_rect, border_radius=14)
+        pygame.draw.rect(self.screen, OUTLINE_COLOR, frame_rect, width=1, border_radius=18)
 
         hover_col = self.get_hover_column(mouse_pos)
         if hover_col is not None:
@@ -716,7 +788,7 @@ class ConnectFourUI:
                 CELL_SIZE - 20,
                 ROWS * CELL_SIZE - 16,
             )
-            self.draw_alpha_rect(highlight_rect, brighten(BOARD_GLOW, 0.2), 26, radius=18)
+            self.draw_alpha_rect(highlight_rect, TEXT_COLOR, 10, radius=16)
 
         winning_cells = set()
         if self.game.game_over and self.game.winner != EMPTY:
@@ -743,47 +815,35 @@ class ConnectFourUI:
             PANEL_WIDTH,
             WINDOW_HEIGHT - BOARD_MARGIN * 2,
         )
-        self.draw_shadow(panel_rect, 28, offset=(0, 16), alpha=95, expand=10)
-        pygame.draw.rect(self.screen, PANEL_BG, panel_rect, border_radius=28)
-        pygame.draw.rect(self.screen, OUTLINE_COLOR, panel_rect, width=2, border_radius=28)
+        pygame.draw.rect(self.screen, PANEL_BG, panel_rect, border_radius=20)
+        pygame.draw.rect(self.screen, OUTLINE_COLOR, panel_rect, width=1, border_radius=20)
 
-        controls_card = pygame.Rect(self.panel_x + 14, self.panel_y + 16, PANEL_WIDTH - 28, 210)
-        status_card = pygame.Rect(self.panel_x + 14, self.panel_y + 244, PANEL_WIDTH - 28, 130)
-        info_card = pygame.Rect(self.panel_x + 14, self.panel_y + 392, PANEL_WIDTH - 28, 192)
+        controls_card = pygame.Rect(self.panel_x + 14, self.panel_y + 16, PANEL_WIDTH - 28, 248)
+        status_card = pygame.Rect(self.panel_x + 14, self.panel_y + 280, PANEL_WIDTH - 28, 130)
+        score_card = pygame.Rect(self.panel_x + 14, self.panel_y + 426, PANEL_WIDTH - 28, 176)
 
-        for card in (controls_card, status_card, info_card):
-            self.draw_alpha_rect(card, PANEL_CARD_BG, 255, radius=22)
-            pygame.draw.rect(self.screen, OUTLINE_COLOR, card, width=2, border_radius=22)
+        for card in (controls_card, status_card, score_card):
+            self.draw_alpha_rect(card, PANEL_CARD_BG, 255, radius=18)
+            pygame.draw.rect(self.screen, OUTLINE_COLOR, card, width=1, border_radius=18)
 
         self.blit_text("Controls", self.section_font, TEXT_COLOR, controls_card.x + 16, controls_card.y + 14)
-        self.blit_text("Difficulty", self.small_font, MUTED_TEXT, controls_card.x + 16, controls_card.y + 116)
 
         for button in self.buttons:
             active = button.action == f"difficulty:{self.difficulty_name}"
+            if button.action == "toggle_sound":
+                active = self.sound_enabled
             self.draw_button(button, mouse_pos, active)
+        self.blit_text("Difficulty", self.small_font, MUTED_TEXT, controls_card.x + 16, controls_card.y + 162)
 
-        self.blit_text("Game Status", self.section_font, TEXT_COLOR, status_card.x + 16, status_card.y + 14)
+        self.blit_text("Status", self.section_font, TEXT_COLOR, status_card.x + 16, status_card.y + 14)
         badge_rect = pygame.Rect(status_card.x + 18, status_card.y + 58, status_card.w - 36, 46)
-        self.draw_shadow(badge_rect, 18, offset=(0, 8), alpha=70, expand=6)
-        pygame.draw.rect(self.screen, self.get_status_color(), badge_rect, border_radius=18)
-        pygame.draw.rect(
-            self.screen,
-            brighten(self.get_status_color(), 0.22),
-            pygame.Rect(badge_rect.x + 8, badge_rect.y + 6, badge_rect.w - 16, 8),
-            border_radius=4,
-        )
+        pygame.draw.rect(self.screen, self.get_status_color(), badge_rect, border_radius=14)
         self.blit_text_center(self.status_message, self.status_font, TEXT_COLOR, badge_rect)
 
-        self.blit_text("Players", self.section_font, TEXT_COLOR, info_card.x + 16, info_card.y + 14)
-        self.draw_disc((info_card.x + 34, info_card.y + 72), 18, HUMAN_COLOR)
-        self.blit_text("You", self.text_font, TEXT_COLOR, info_card.x + 64, info_card.y + 58)
-        self.draw_disc((info_card.x + 34, info_card.y + 118), 18, AI_COLOR)
-        self.blit_text("AI", self.text_font, TEXT_COLOR, info_card.x + 64, info_card.y + 104)
-
-        hint_rect = pygame.Rect(info_card.x + 16, info_card.y + 148, info_card.w - 32, 30)
-        self.draw_alpha_rect(hint_rect, APP_BG, 150, radius=14)
-        hint = "Click the board to play"
-        self.blit_text_center(hint, self.small_font, MUTED_TEXT, hint_rect)
+        self.blit_text("Scoreboard", self.section_font, TEXT_COLOR, score_card.x + 16, score_card.y + 14)
+        self.draw_score_row(score_card.x + 16, score_card.y + 56, "Wins", self.human_wins, HUMAN_COLOR)
+        self.draw_score_row(score_card.x + 16, score_card.y + 92, "Losses", self.ai_wins, AI_COLOR)
+        self.draw_score_row(score_card.x + 16, score_card.y + 128, "Draws", self.draw_count, TEXT_COLOR)
 
     def draw_button(
         self, button: UIButton, mouse_pos: tuple[int, int], active: bool = False
@@ -795,19 +855,36 @@ class ConnectFourUI:
         elif hovered:
             base_color = BUTTON_HOVER
 
-        self.draw_shadow(button.rect, 14, offset=(0, 8), alpha=70, expand=6)
-        pygame.draw.rect(self.screen, base_color, button.rect, border_radius=14)
-        pygame.draw.rect(
-            self.screen,
-            brighten(base_color, 0.18),
-            pygame.Rect(button.rect.x + 8, button.rect.y + 6, button.rect.w - 16, 8),
-            border_radius=4,
-        )
-        pygame.draw.rect(self.screen, OUTLINE_COLOR, button.rect, width=2, border_radius=14)
+        pygame.draw.rect(self.screen, base_color, button.rect, border_radius=12)
+        pygame.draw.rect(self.screen, OUTLINE_COLOR, button.rect, width=1, border_radius=12)
 
-        label = self.button_font.render(button.label, True, TEXT_COLOR)
+        label_text = self.get_button_label(button)
+        label = self.button_font.render(label_text, True, TEXT_COLOR)
         label_rect = label.get_rect(center=button.rect.center)
         self.screen.blit(label, label_rect)
+
+    def draw_score_row(
+        self,
+        x: int,
+        y: int,
+        label: str,
+        value: int,
+        value_color: tuple[int, int, int],
+    ) -> None:
+        row_rect = pygame.Rect(x, y, PANEL_WIDTH - 60, 28)
+        self.blit_text(label, self.text_font, TEXT_COLOR, row_rect.x, row_rect.y + 3)
+        value_surface = self.section_font.render(str(value), True, value_color)
+        value_rect = value_surface.get_rect(midright=(row_rect.right, row_rect.y + 14))
+        self.screen.blit(value_surface, value_rect)
+
+        divider_y = row_rect.bottom + 8
+        pygame.draw.line(
+            self.screen,
+            OUTLINE_COLOR,
+            (row_rect.x, divider_y),
+            (row_rect.right, divider_y),
+            1,
+        )
 
     def get_hover_column(self, mouse_pos: tuple[int, int]) -> int | None:
         if self.game.game_over or self.ai_pending or self.game.current_player != HUMAN:
@@ -815,11 +892,9 @@ class ConnectFourUI:
         return self.get_clicked_column(mouse_pos)
 
     def draw_slot(self, center: tuple[int, int], radius: int) -> None:
-        shadow_center = (center[0] + 4, center[1] + 7)
-        pygame.draw.circle(self.screen, darken(SHADOW_COLOR, 0.1), shadow_center, radius)
-        pygame.draw.circle(self.screen, SLOT_COLOR, center, radius)
-        pygame.draw.circle(self.screen, brighten(SLOT_RING, 0.1), center, radius, width=3)
-        self.draw_alpha_circle((center[0] - 10, center[1] - 12), radius // 2, EMPTY_COLOR, 18)
+        shadow_center = (center[0], center[1] + 2)
+        self.draw_circle(shadow_center, radius, darken(SHADOW_COLOR, 0.35))
+        self.draw_circle(center, radius, SLOT_COLOR, SLOT_RING, 1)
 
     def draw_disc(
         self,
@@ -828,15 +903,26 @@ class ConnectFourUI:
         color: tuple[int, int, int],
         highlighted: bool = False,
     ) -> None:
-        shadow_center = (center[0] + 5, center[1] + 8)
-        pygame.draw.circle(self.screen, darken(color, 0.78), shadow_center, radius)
+        shadow_center = (center[0], center[1] + 3)
+        self.draw_circle(shadow_center, radius, darken(color, 0.45))
 
         if highlighted:
-            self.draw_alpha_circle(center, radius + 10, brighten(color, 0.22), 90)
+            self.draw_alpha_circle(center, radius + 5, TEXT_COLOR, 22)
 
-        pygame.draw.circle(self.screen, darken(color, 0.22), center, radius)
-        pygame.draw.circle(self.screen, color, (center[0] - 1, center[1] - 2), radius - 4)
-        self.draw_alpha_circle((center[0] - 13, center[1] - 14), max(8, radius // 4), TEXT_COLOR, 55)
+        self.draw_circle(center, radius, color, brighten(color, 0.08), 1)
+
+    def draw_circle(
+        self,
+        center: tuple[int, int],
+        radius: int,
+        fill_color: tuple[int, int, int],
+        outline_color: tuple[int, int, int] | None = None,
+        outline_width: int = 0,
+    ) -> None:
+        pygame.gfxdraw.filled_circle(self.screen, center[0], center[1], radius, fill_color)
+        pygame.gfxdraw.aacircle(self.screen, center[0], center[1], radius, fill_color)
+        if outline_color is not None and outline_width > 0:
+            pygame.draw.circle(self.screen, outline_color, center, radius, outline_width)
 
     def draw_shadow(
         self,
